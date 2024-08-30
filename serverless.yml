@@ -1,0 +1,94 @@
+service: aws-findr-backend
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 128
+  environment: ${file(resources/environment.yml)}
+  # httpApi:
+  #   authorizers:
+  #     tokenA:
+  #       type: request
+  #       identitySource: $request.header.Authorization
+  #       functionName: authorizerLambda
+
+package:
+  individually: true
+  # patterns:
+  #   - "!node_modules/**"
+  #   - "!README.md"
+  #   - "!.env"
+  #   - "!resources/**"
+  #   - "!.serverless/**"
+  #   - "!src/**"
+  #   - "!serverless.yml"
+  #   - "!tsconfig.json"
+  #   - "!yarn.lock"
+  #   - "!package.json"
+  #   - "!webpack.config.js"
+  #   - "!tslint.json"
+  #   - "!src/**"
+  #   - "src/utils/**"
+
+functions:
+  getUsers:
+    handler: src/handlers/getUsers.handler
+    role: !GetAtt GetFunctionRole.Arn
+    events:
+      - httpApi:
+          path: /users
+          method: get
+          # authorizer: tokenA
+    
+
+  getUser:
+    handler: src/handlers/getUser.handler
+    role: !GetAtt GetFunctionRole.Arn
+    events:
+      - httpApi:
+          path: /users/{email}
+          method: get
+          # authorizer: tokenA
+    
+
+  createUser:
+    handler: src/handlers/createUser.handler
+    role: !GetAtt PostFunctionRole.Arn
+    events:
+      - httpApi:
+          path: /user
+          method: post
+          # authorizer: tokenA
+    package:
+      patterns:
+        - "src/handlers/createUser.js"
+plugins:
+  - serverless-plugin-typescript
+
+  # updateTask:
+  #   handler: src/handlers/updateTask.handler
+  #   role: !GetAtt PostFunctionRole.Arn
+  #   events:
+  #     - httpApi:
+  #         path: /tasks/{id}
+  #         method: put
+  #         authorizer: tokenA
+  #   package:
+  #     patterns:
+  #       - "src/handlers/updateTask.js"
+
+  # authorizerLambda:
+  #   handler: src/authorizers/tokenAuthorizer.handler
+  #   role: !GetAtt AuthorizerRole.Arn
+  #   package:
+  #     patterns:
+  #       - "src/authorizers/tokenAuthorizer.js"
+
+resources:
+  Resources: ${file(resources/resources.yml)}
+
+

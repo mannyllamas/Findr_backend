@@ -1,0 +1,3 @@
+DYNAMODB_TABLE: UsersTable-${self:provider.stage}
+REGION: ${self:provider.region}
+SECRET_NAME: findr/keys

@@ -1,0 +1,100 @@
+PostFunctionRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: postFunctionRole-${self:provider.stage}
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    Policies:
+      - PolicyName: postFunctionPolicy-${self:provider.stage}
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: arn:aws:logs:${self:provider.region}:637423524797:log-group:/aws/lambda/${self:service}-${self:provider.stage}-createUser:*
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:PostItem
+              Resource: !GetAtt UsersTable.Arn
+
+GetFunctionRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: getFunctionRole-${self:provider.stage}
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    Policies:
+      - PolicyName: getFunctionPolicy-${self:provider.stage}
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: arn:aws:logs:${self:provider.region}:637423524797:log-group:/aws/lambda/${self:service}-${self:provider.stage}-getUsers:*
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Scan
+              Resource: !GetAtt UsersTable.Arn
+
+AuthorizerRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: authorizerRole-${self:provider.stage}
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    Policies:
+      - PolicyName: authorizerPolicy-${self:provider.stage}
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: arn:aws:logs:${self:provider.region}:637423524797:log-group:/aws/lambda/${self:service}-${self:provider.stage}-authorizerLambda:*
+            - Effect: Allow
+              Action:
+                - execute-api:Invoke
+              Resource:
+                - arn:aws:lambda:${self:provider.region}:637423524797:function:${self:service}-${self:provider.stage}-createUser
+                - arn:aws:lambda:${self:provider.region}:637423524797:function:${self:service}-${self:provider.stage}-getUsers
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: arn:aws:secretsmanager:${self:provider.region}:637423524797:secret:${self:provider.environment.SECRET_NAME}-*
+
+UsersTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: UsersTable-${self:provider.stage}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+    KeySchema:
+      - AttributeName: id
+        KeyType: HASH
