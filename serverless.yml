@@ -4,91 +4,154 @@ frameworkVersion: "3"
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs16.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
   memorySize: 128
   environment: ${file(resources/environment.yml)}
-  # httpApi:
-  #   authorizers:
-  #     tokenA:
-  #       type: request
-  #       identitySource: $request.header.Authorization
-  #       functionName: authorizerLambda
 
-package:
-  individually: true
-  # patterns:
-  #   - "!node_modules/**"
-  #   - "!README.md"
-  #   - "!.env"
-  #   - "!resources/**"
-  #   - "!.serverless/**"
-  #   - "!src/**"
-  #   - "!serverless.yml"
-  #   - "!tsconfig.json"
-  #   - "!yarn.lock"
-  #   - "!package.json"
-  #   - "!webpack.config.js"
-  #   - "!tslint.json"
-  #   - "!src/**"
-  #   - "src/utils/**"
 
 functions:
   getUsers:
     handler: src/handlers/getUsers.handler
-    role: !GetAtt GetFunctionRole.Arn
+    role: GetFunctionRole  # Reference role by resource name instead of ARN
     events:
       - httpApi:
           path: /users
           method: get
-          # authorizer: tokenA
-    
 
   getUser:
     handler: src/handlers/getUser.handler
-    role: !GetAtt GetFunctionRole.Arn
+    role: GetFunctionRole  # Reference role by resource name instead of ARN
     events:
       - httpApi:
           path: /users/{email}
           method: get
-          # authorizer: tokenA
-    
 
   createUser:
     handler: src/handlers/createUser.handler
-    role: !GetAtt PostFunctionRole.Arn
+    role: PostFunctionRole
     events:
       - httpApi:
           path: /user
           method: post
-          # authorizer: tokenA
+
     package:
       patterns:
         - "src/handlers/createUser.js"
+
+  getPresignedUrl:
+    handler: src/handlers/getPresignedUrl.handler
+    role: S3FunctionRole
+    events:
+      - httpApi:
+          path: /get-presigned-url
+          method: get
+    package:
+      patterns:
+        - "src/handlers/getPresignedUrl.js"
+  
 plugins:
   - serverless-plugin-typescript
 
-  # updateTask:
-  #   handler: src/handlers/updateTask.handler
-  #   role: !GetAtt PostFunctionRole.Arn
-  #   events:
-  #     - httpApi:
-  #         path: /tasks/{id}
-  #         method: put
-  #         authorizer: tokenA
-  #   package:
-  #     patterns:
-  #       - "src/handlers/updateTask.js"
-
-  # authorizerLambda:
-  #   handler: src/authorizers/tokenAuthorizer.handler
-  #   role: !GetAtt AuthorizerRole.Arn
-  #   package:
-  #     patterns:
-  #       - "src/authorizers/tokenAuthorizer.js"
+# Add a package section to ensure node_modules are included
+package:
+  individually: true
+  patterns:
+    - node_modules/**  # Ensures dependencies are included
+    - src/**           # Include source files
+    - "!**/*.ts"       # Exclude TypeScript files
 
 resources:
-  Resources: ${file(resources/resources.yml)}
+  Resources:
+    # Role for the createUser function
+    PostFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: postFunctionRole-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: postFunctionPolicy-${self:provider.stage}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: arn:aws:logs:${self:provider.region}:637423524797:log-group:/aws/lambda/${self:service}-${self:provider.stage}-createUser:*
+                - Effect: Allow
+                  Action:
+                    - dynamodb:PutItem
+                  Resource: !GetAtt UsersTable.Arn
 
+    # Role for the getUser and getUsers functions
+    GetFunctionRole:
+      Type: AWS::IAM::Role
+      Properties: 
+        RoleName: getFunctionRole-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: getFunctionPolicy-${self:provider.stage}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: arn:aws:logs:${self:provider.region}:637423524797:log-group:/aws/lambda/${self:service}-${self:provider.stage}-getUsers:*
+                - Effect: Allow
+                  Action:
+                    - dynamodb:GetItem
+                    - dynamodb:Scan
+                  Resource: !GetAtt UsersTable.Arn
+    S3FunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: s3FunctionRole-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: s3FunctionPolicy-${self:provider.stage}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - s3:PutObject
+                    - s3:GetObject
+                    - s3:DeleteObject
+                  Resource: arn:aws:s3:::findr-user-background-img/profile-backgrounds/*
 
+    # DynamoDB Table for Users
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: UsersTable-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
